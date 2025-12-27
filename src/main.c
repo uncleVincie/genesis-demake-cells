@@ -27,7 +27,7 @@ int main(bool hardReset)
     bgb = MAP_create(&bgb_map, BG_B, TILE_ATTR_FULL(PAL1, FALSE, FALSE, FALSE, bgBaseTileIndex[1]));
     MAP_scrollTo(bga, 0, 0);
     SYS_doVBlankProcess();
-    MAP_scrollTo(bgb, 0, 50);
+    MAP_scrollTo(bgb, 0, 0);
     SYS_doVBlankProcess();
 
     while (1)
