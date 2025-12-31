@@ -1,1 +1,1 @@
-SPRITE player_sprite "sprites/demakeCells_player_spritesheet.bmp" 3 4 NONE
+SPRITE player_sprite "sprites/demakeCells_player_spritesheet.bmp" 3 4 NONE 5

@@ -40,17 +40,22 @@ void joyHandler(u16 joy, u16 changed, u16 pressed)
          NOTE: need to use bitwise operators here, since enums are hex */
         if (pressed & BUTTON_RIGHT)
         {
-            player_vel_x = 3; // pixel/frame
+            player_vel_x = 2; // pixel/frame
+            SPR_setAnim(player, 1);
+            SPR_setHFlip(player, FALSE);
         }
         else if (pressed & BUTTON_LEFT)
         {
-            player_vel_x = -3;
+            player_vel_x = -2;
+            SPR_setAnim(player, 1);
+            SPR_setHFlip(player, TRUE);
         }
         else
         {
             if ((changed & BUTTON_RIGHT) | (changed & BUTTON_LEFT))
             {
                 player_vel_x = 0;
+                SPR_setAnim(player, 0);
             }
         }
     }
