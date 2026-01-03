@@ -1,30 +1,15 @@
 #include <genesis.h>
-#include <res_maps.h>
-#include <res_sprites.h>
-#include <string.h>
 
-/*The edges of the play field*/
-const int LEFT_EDGE = 0;
-const int RIGHT_EDGE = 320;
-const int TOP_EDGE = 0;
-const int BOTTOM_EDGE = 224;
+#include "res_maps.h"
+#include "res_sprites.h"
+#include "player.h"
 
 // maps (BGA and BGB)
 Map *bgb;
 Map *bga;
 
-// sprites
-Sprite *player;
-
 // BG start tile index
 u16 bgBaseTileIndex[2];
-
-// states
-int player_vel_x = 0;
-int player_pos_x = 40;
-const int player_pos_y = 100;
-const int player_width = 24;
-const int player_height = 32;
 
 /*
 The callback function for joypad inputs.
@@ -35,45 +20,8 @@ void joyHandler(u16 joy, u16 changed, u16 pressed)
 {
     if (joy == JOY_1)
     {
-        /*Set player velocity if left or right are pressed;
-         *set velocity to 0 if no direction is pressed
-         NOTE: need to use bitwise operators here, since enums are hex */
-        if (pressed & BUTTON_RIGHT)
-        {
-            player_vel_x = 2; // pixel/frame
-            SPR_setAnim(player, 1);
-            SPR_setHFlip(player, FALSE);
-        }
-        else if (pressed & BUTTON_LEFT)
-        {
-            player_vel_x = -2;
-            SPR_setAnim(player, 1);
-            SPR_setHFlip(player, TRUE);
-        }
-        else
-        {
-            if ((changed & BUTTON_RIGHT) | (changed & BUTTON_LEFT))
-            {
-                player_vel_x = 0;
-                SPR_setAnim(player, 0);
-            }
-        }
+        PLAYER_doJoyAction(changed, pressed);
     }
-}
-
-void positionPlayer()
-{
-    /*Add the player's velocity to its position*/
-    player_pos_x += player_vel_x;
-
-    /*Keep the player within the bounds of the screen*/
-    if (player_pos_x < LEFT_EDGE)
-        player_pos_x = LEFT_EDGE;
-    if (player_pos_x + player_width > RIGHT_EDGE)
-        player_pos_x = RIGHT_EDGE - player_width;
-
-    /*Let the Sprite engine position the sprite*/
-    SPR_setPosition(player, player_pos_x, player_pos_y);
 }
 
 int main(bool hardReset)
@@ -104,12 +52,11 @@ int main(bool hardReset)
     SYS_showFrameLoad(TRUE);
 
     // Sprites
-    SPR_init();
-    player = SPR_addSprite(&player_sprite, player_pos_x, player_pos_y, TILE_ATTR(PAL3, 0, FALSE, FALSE));
-
+    PLAYER_init(0);
+    
     while (1)
     {
-        positionPlayer();
+        PLAYER_update();
 
         SPR_update();
         SYS_doVBlankProcess();
