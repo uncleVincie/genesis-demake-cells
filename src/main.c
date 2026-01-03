@@ -56,7 +56,7 @@ int main(bool hardReset)
     
     while (1)
     {
-        PLAYER_updateScreenPosition();
+        PLAYER_update();
 
         SPR_update();
         SYS_doVBlankProcess();
