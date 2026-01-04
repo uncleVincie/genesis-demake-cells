@@ -9,13 +9,17 @@
 const int LEFT_EDGE = 0;
 const int RIGHT_EDGE = 320;
 const int TOP_EDGE = 0;
-const int BOTTOM_EDGE = 224;
+const int BOTTOM_EDGE = 100;
 
-const int WALKING_SPEED = 2;
+const int WALKING_SPEED = 2; //pixels/frame
 
 const int STANDING_ANIM = 0;
 const int WALKING_ANIM = 1;
 const int DODGING_ANIM = 2;
+const int JUMPING_ANIM = 3;
+
+const fix16 GRAVITY = FIX16(0.24);
+const fix16 JUMP_SPEED = FIX16(3.5);
 
 // player sprite
 Sprite *player;
@@ -23,20 +27,23 @@ Sprite *player;
 // states
 int player_vel_x = 0;
 int player_pos_x = 40;
-const int player_pos_y = 100;
-const int player_width = 24;
-const int player_height = 32;
+fix16 player_vel_y = FIX16(0);
+fix16 player_pos_y = FIX16(100);
+const int PLAYER_WIDTH = 24;
+const int PLAYER_HEIGHT = 32;
 s8 player_direction = RIGHT;
 u8 dodgeFrames = 0;
 u8 dodgeCooldown = 60;
-// char str_dodgeFrames[2] = "0";
+u8 jumpsLeft = 2;
+char str_vel_y[3];
 // char str_playerDirection[2] = "0";
 
-// static void jump(void);
+static void jump(void);
 static void stand(void);
 static void run(s8 direction);
 static void positionPlayer(void);
 static void handleDodge(void);
+static bool airborne(void);
 
 /*
 gets called upon game reset
@@ -62,15 +69,27 @@ void positionPlayer()
 {
     // Add the player's velocity to its position
     player_pos_x += player_vel_x;
+    player_pos_y += player_vel_y;
+
+    //apply gravity
+    if (airborne())
+    {
+        player_vel_y += GRAVITY;
+    } else 
+    {
+        player_vel_y = 0;
+    }
 
     // Keep the player within the bounds of the screen
     if (player_pos_x < LEFT_EDGE)
         player_pos_x = LEFT_EDGE;
-    if (player_pos_x + player_width > RIGHT_EDGE)
-        player_pos_x = RIGHT_EDGE - player_width;
+    if (player_pos_x + PLAYER_WIDTH > RIGHT_EDGE)
+        player_pos_x = RIGHT_EDGE - PLAYER_WIDTH;
+    if (player_pos_y > F16(BOTTOM_EDGE)) player_pos_y = F16(BOTTOM_EDGE);
+
 
     // Let the Sprite engine position the sprite
-    SPR_setPosition(player, player_pos_x, player_pos_y);
+    SPR_setPosition(player, player_pos_x, F16_toRoundedInt(player_pos_y));
 }
 
 void handleDodge()
@@ -96,11 +115,11 @@ void handleDodge()
         }
     }
     // debug stuff
-    // sprintf(str_dodgeFrames,"%d",dodgeFrames);
+    sprintf(str_vel_y,"%d",F16_toRoundedInt(player_vel_y));
     // sprintf(str_playerDirection,"%d",player_direction);
-    // VDP_clearText(1,2,2);
+    VDP_clearText(1,2,10);
     // VDP_clearText(1,3,2);
-    // VDP_drawText(str_dodgeFrames,1,2);
+    VDP_drawText(str_vel_y,1,2);
     // VDP_drawText(str_playerDirection,1,3);
 }
 
@@ -125,6 +144,10 @@ void PLAYER_doJoyAction(u16 changed, u16 pressed)
         SPR_setAnim(player, DODGING_ANIM);
         dodgeFrames = 30;
         dodgeCooldown = 60;
+    }
+    else if (changed & pressed & BUTTON_B)
+    {
+        jump();
     }
     else if (pressed & BUTTON_RIGHT)
     {
@@ -160,4 +183,27 @@ void stand()
 {
     player_vel_x = 0;
     SPR_setAnim(player, STANDING_ANIM);
+}
+
+void jump()
+{
+    if(!airborne())
+    {
+        jumpsLeft = 2;
+        SPR_setAnim(player, JUMPING_ANIM);
+        jumpsLeft--;
+        player_vel_y = -JUMP_SPEED;
+    } else if (airborne() && jumpsLeft > 0)
+    {
+        SPR_setAnimAndFrame(player, JUMPING_ANIM, 0);
+        jumpsLeft--;
+        player_vel_y = -JUMP_SPEED;
+    } else {
+        //do nothing
+    }
+}
+
+bool airborne() 
+{
+    return F16_toRoundedInt(player_pos_y) < 100;
 }
