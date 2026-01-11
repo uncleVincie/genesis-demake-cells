@@ -41,6 +41,7 @@ int main(bool hardReset)
     ind += bgb_tileset.numTile;
 
     PAL_setPalette(PAL0, palette_bga.data, DMA);
+    PAL_setPalette(PAL1, player_airJump.palette->data, DMA);
     PAL_setPalette(PAL3, player_sprite.palette->data, DMA);
     bga = MAP_create(&bga_map, BG_A, TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, bgBaseTileIndex[0]));
     bgb = MAP_create(&bgb_map, BG_B, TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, bgBaseTileIndex[1]));

@@ -25,6 +25,7 @@ const u8 MAX_DODGE_FRAMES = 30;
 
 // player sprite
 Sprite *player;
+Sprite *airJump;
 
 // states
 s8 xOrder = 0;
@@ -39,6 +40,7 @@ s8 player_direction = RIGHT;
 u8 dodgeFrames = 0;
 u8 dodgeCooldown = 0;
 u8 jumpsLeft = 2;
+u8 airJumpSpriteCooldown = 0;
 
 static void jump(void);
 static void stand(void);
@@ -56,6 +58,8 @@ u16 PLAYER_init(u16 vramIndex)
 {
     SPR_init();
     player = SPR_addSprite(&player_sprite, player_pos_x, player_pos_y, TILE_ATTR(PAL3, 0, FALSE, FALSE));
+    airJump = SPR_addSprite(&player_airJump, player_pos_x, player_pos_y, TILE_ATTR(PAL1, 0, FALSE, FALSE));
+    SPR_setVisibility(airJump, HIDDEN);
 
     return vramIndex; // static vram allocation not used for player
 }
@@ -68,7 +72,8 @@ void PLAYER_update(void)
     pollDpad();
     handleDodge();
     positionPlayer();
-    debug((int) dodgeFrames);
+    airJumpSpriteCooldown > 0 ? airJumpSpriteCooldown-- : SPR_setVisibility(airJump, HIDDEN);
+    // debug((int) dodgeFrames);
 }
 
 void debug(int value)
@@ -103,9 +108,13 @@ void positionPlayer()
     // calculate velocity
     if (xOrder == 0 && dodgeFrames == 0 && !airborne())
         stand();
-    else if (airborne() && ((xOrder == RIGHT && player_direction == LEFT) || ((xOrder == LEFT && player_direction == RIGHT))))
-        player_vel_x = xOrder * FALLING_X_SPEED; //go slower if changing direction while falling
-    else if (dodgeFrames == 0) //on the ground, not rolling, with dpad input
+    else if (airborne() && ((xOrder == RIGHT && player_direction == LEFT) || ((xOrder == LEFT && player_direction == RIGHT)))) // changing direction while falling
+    {
+        player_vel_x = xOrder * FALLING_X_SPEED; // go slower if changing direction while falling
+        player_direction = xOrder;
+        player_direction < 0 ? SPR_setHFlip(player, TRUE) : SPR_setHFlip(player, FALSE);
+    }
+    else if (dodgeFrames == 0) // on the ground, not rolling, with dpad input
     {
         player_vel_x = xOrder * WALKING_SPEED;
         run(xOrder);
@@ -147,8 +156,10 @@ void positionPlayer()
 void handleDodge()
 {
 
-    if (dodgeFrames > 0) dodgeFrames--;
-    if (dodgeCooldown > 0) dodgeCooldown--;
+    if (dodgeFrames > 0)
+        dodgeFrames--;
+    if (dodgeCooldown > 0)
+        dodgeCooldown--;
 
     // dodge interrupts
     if ((xOrder == RIGHT && player_direction == LEFT) || (xOrder == LEFT && player_direction == RIGHT))
@@ -201,16 +212,19 @@ void stand()
 
 void jump()
 {
-    if (!airborne())
+    if (!airborne()) // ground jump
     {
         jumpsLeft = 2;
         SPR_setAnim(player, JUMPING_ANIM);
         jumpsLeft--;
         player_vel_y = -JUMP_SPEED;
     }
-    else if (airborne() && jumpsLeft > 0)
+    else if (airborne() && jumpsLeft > 0) // air jump
     {
         SPR_setAnimAndFrame(player, JUMPING_ANIM, 0);
+        SPR_setPosition(airJump, player_pos_x - 8, F16_toRoundedInt(player_pos_y) + PLAYER_HEIGHT - 4);
+        SPR_setVisibility(airJump, VISIBLE);
+        airJumpSpriteCooldown = 5;
         jumpsLeft--;
         player_vel_y = -JUMP_SPEED;
     }
