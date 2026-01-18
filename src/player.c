@@ -73,7 +73,7 @@ void PLAYER_update(void)
     handleDodge();
     positionPlayer();
     airJumpSpriteCooldown > 0 ? airJumpSpriteCooldown-- : SPR_setVisibility(airJump, HIDDEN);
-    // debug((int) dodgeFrames);
+    debug(player_direction);
 }
 
 void debug(int value)
@@ -106,15 +106,16 @@ void pollDpad()
 void positionPlayer()
 {
     // calculate velocity
-    if (xOrder == 0 && dodgeFrames == 0 && !airborne())
+    if (xOrder == 0 && dodgeFrames == 0 && player_vel_y == 0)
         stand();
-    else if (airborne() && ((xOrder == RIGHT && player_direction == LEFT) || ((xOrder == LEFT && player_direction == RIGHT)))) // changing direction while falling
+    else if (airborne() && ((xOrder == RIGHT && player_direction == LEFT) || (xOrder == LEFT && player_direction == RIGHT))) // changing direction while falling
     {
         player_vel_x = xOrder * FALLING_X_SPEED; // go slower if changing direction while falling
         player_direction = xOrder;
         player_direction < 0 ? SPR_setHFlip(player, TRUE) : SPR_setHFlip(player, FALSE);
+        VDP_drawText("ENTERING AIRBORNE BLOCK",1,3);
     }
-    else if (dodgeFrames == 0) // on the ground, not rolling, with dpad input
+    else if (dodgeFrames == 0 && xOrder != 0 && !airborne()) // on the ground, not rolling, with dpad input
     {
         player_vel_x = xOrder * WALKING_SPEED;
         run(xOrder);
@@ -224,7 +225,7 @@ void jump()
         SPR_setAnimAndFrame(player, JUMPING_ANIM, 0);
         SPR_setPosition(airJump, player_pos_x - 8, F16_toRoundedInt(player_pos_y) + PLAYER_HEIGHT - 4);
         SPR_setVisibility(airJump, VISIBLE);
-        airJumpSpriteCooldown = 5;
+        airJumpSpriteCooldown = 7;
         jumpsLeft--;
         player_vel_y = -JUMP_SPEED;
     }
