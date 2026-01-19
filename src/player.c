@@ -11,18 +11,6 @@ const int RIGHT_EDGE = 320;
 const int TOP_EDGE = 0;
 const int BOTTOM_EDGE = 100;
 
-const int STANDING_ANIM = 0;
-const int WALKING_ANIM = 1;
-const int DODGING_ANIM = 2;
-const int JUMPING_ANIM = 3;
-
-const int WALKING_SPEED = 2; // pixels/frame
-const int FALLING_X_SPEED = 1;
-const fix16 GRAVITY = FIX16(0.24);
-const fix16 JUMP_SPEED = FIX16(3.5);
-const u8 DEFAULT_DODGE_COOLDOWN = 54;
-const u8 MAX_DODGE_FRAMES = 30;
-
 // player sprite
 Sprite *player;
 Sprite *airJump;
@@ -34,13 +22,13 @@ int player_vel_x = 0;
 int player_pos_x = 40;
 fix16 player_vel_y = FIX16(0);
 fix16 player_pos_y = FIX16(100);
-const int PLAYER_WIDTH = 24;
-const int PLAYER_HEIGHT = 32;
+
 s8 player_direction = RIGHT;
 u8 dodgeFrames = 0;
 u8 dodgeCooldown = 0;
 u8 jumpsLeft = 2;
 u8 airJumpSpriteCooldown = 0;
+u8 stompRecovery = 0;
 
 static void jump(void);
 static void stomp(void);
@@ -48,7 +36,9 @@ static void stand(void);
 static void run(s8 direction);
 static void positionPlayer(void);
 static void handleDodge(void);
+static void handleStompRecovery(void);
 static bool airborne(void);
+static bool stomping(void);
 static void debug(int value);
 static void pollDpad(void);
 
@@ -72,6 +62,7 @@ void PLAYER_update(void)
 {
     pollDpad();
     handleDodge();
+    handleStompRecovery();
     positionPlayer();
     airJumpSpriteCooldown > 0 ? airJumpSpriteCooldown-- : SPR_setVisibility(airJump, HIDDEN);
     debug(player_direction);
@@ -107,9 +98,9 @@ void pollDpad()
 void positionPlayer()
 {
     // calculate velocity
-    if (xOrder == 0 && dodgeFrames == 0 && player_vel_y == 0)
+    if (xOrder == 0 && dodgeFrames == 0 && player_vel_y == 0 && stompRecovery == 0)
         stand();
-    else if (airborne() && ((xOrder == RIGHT && player_direction == LEFT) || (xOrder == LEFT && player_direction == RIGHT)) && player_vel_y < FIX16(STOMP_VELOCITY)) // changing direction while falling
+    else if (airborne() && ((xOrder == RIGHT && player_direction == LEFT) || (xOrder == LEFT && player_direction == RIGHT)) && !stomping()) // changing direction while falling
     {
         player_vel_x = xOrder * FALLING_X_SPEED; // go slower if changing direction while falling
         player_direction = xOrder;
@@ -128,7 +119,7 @@ void positionPlayer()
     // apply gravity
     if (airborne())
     {
-        if (player_vel_y < FIX16(TERMINAL_VELOCITY)) player_vel_y += GRAVITY;
+        if (player_vel_y < TERMINAL_VELOCITY) player_vel_y += GRAVITY;
     } else
     {
         player_vel_y = 0;
@@ -139,6 +130,17 @@ void positionPlayer()
     {
         SPR_setAutoAnimation(player, FALSE);
         SPR_setAnimAndFrame(player, JUMPING_ANIM, 2); // last animation of the jump
+    }
+    else
+    {
+        SPR_setAutoAnimation(player, TRUE);
+    }
+
+    // handle stomp recovery
+    if (!airborne() && stompRecovery > 0) // if player landed after stomping
+    {
+        SPR_setAutoAnimation(player, FALSE);
+        SPR_setAnimAndFrame(player, STOMPING_ANIM, 0);
     }
     else
     {
@@ -170,6 +172,16 @@ void handleDodge()
         dodgeFrames = 0;
 }
 
+void handleStompRecovery()
+{
+    if (stompRecovery > 0)
+        stompRecovery--;
+
+    //stomp interrupts
+    if (abs(xOrder) > 0 && !airborne())
+        stompRecovery = 0;
+}
+
 /*
 pressed = 1 if pressed and 0 if not
 changed = 1 if state is different than last frame's state, 0 if not
@@ -192,6 +204,7 @@ void PLAYER_doJoyAction(u16 changed, u16 pressed)
         SPR_setAnim(player, DODGING_ANIM);
         dodgeFrames = MAX_DODGE_FRAMES;
         dodgeCooldown = DEFAULT_DODGE_COOLDOWN;
+        stompRecovery = 0;
     }
     else if (changed & pressed & BUTTON_B)
     {
@@ -201,6 +214,7 @@ void PLAYER_doJoyAction(u16 changed, u16 pressed)
         } else
         {
             jump();
+            stompRecovery = 0; //stomp recovery cancel
         }
         dodgeFrames = 0; // dodge cancel
     }
@@ -212,6 +226,7 @@ void run(s8 direction)
     player_vel_x = player_direction * WALKING_SPEED; // pixel/frame
     SPR_setAnim(player, WALKING_ANIM);
     player_direction < 0 ? SPR_setHFlip(player, TRUE) : SPR_setHFlip(player, FALSE);
+    stompRecovery = 0; //stomp recovery cancel
 }
 
 void stand()
@@ -246,10 +261,17 @@ void jump()
 
 void stomp()
 {
-    player_vel_y = FIX16(STOMP_VELOCITY);
+    player_vel_y = STOMP_VELOCITY;
+    stompRecovery = STOMP_RECOVERY_FRAMES;
+    player_vel_x = 0;
 }
 
 bool airborne()
 {
     return F16_toRoundedInt(player_pos_y) < 100;
+}
+
+bool stomping()
+{
+    return player_vel_y >= STOMP_VELOCITY;
 }
