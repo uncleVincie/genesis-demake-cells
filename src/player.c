@@ -43,6 +43,7 @@ u8 jumpsLeft = 2;
 u8 airJumpSpriteCooldown = 0;
 
 static void jump(void);
+static void stomp(void);
 static void stand(void);
 static void run(s8 direction);
 static void positionPlayer(void);
@@ -108,12 +109,11 @@ void positionPlayer()
     // calculate velocity
     if (xOrder == 0 && dodgeFrames == 0 && player_vel_y == 0)
         stand();
-    else if (airborne() && ((xOrder == RIGHT && player_direction == LEFT) || (xOrder == LEFT && player_direction == RIGHT))) // changing direction while falling
+    else if (airborne() && ((xOrder == RIGHT && player_direction == LEFT) || (xOrder == LEFT && player_direction == RIGHT)) && player_vel_y < FIX16(STOMP_VELOCITY)) // changing direction while falling
     {
         player_vel_x = xOrder * FALLING_X_SPEED; // go slower if changing direction while falling
         player_direction = xOrder;
         player_direction < 0 ? SPR_setHFlip(player, TRUE) : SPR_setHFlip(player, FALSE);
-        VDP_drawText("ENTERING AIRBORNE BLOCK",1,3);
     }
     else if (dodgeFrames == 0 && xOrder != 0 && !airborne()) // on the ground, not rolling, with dpad input
     {
@@ -127,9 +127,12 @@ void positionPlayer()
 
     // apply gravity
     if (airborne())
-        player_vel_y += GRAVITY;
-    else
+    {
+        if (player_vel_y < FIX16(TERMINAL_VELOCITY)) player_vel_y += GRAVITY;
+    } else
+    {
         player_vel_y = 0;
+    }
 
     // handle falling
     if (dodgeFrames == 0 && player_vel_y > FIX16(0))
@@ -192,7 +195,13 @@ void PLAYER_doJoyAction(u16 changed, u16 pressed)
     }
     else if (changed & pressed & BUTTON_B)
     {
-        jump();
+        if (yOrder == 1 && airborne()) //if pressing down in the air
+        {
+            stomp();
+        } else
+        {
+            jump();
+        }
         dodgeFrames = 0; // dodge cancel
     }
 }
@@ -233,6 +242,11 @@ void jump()
     {
         // do nothing
     }
+}
+
+void stomp()
+{
+    player_vel_y = FIX16(STOMP_VELOCITY);
 }
 
 bool airborne()

@@ -3,6 +3,8 @@
 
 #define LEFT    -1
 #define RIGHT   1
+#define TERMINAL_VELOCITY 8
+#define STOMP_VELOCITY 16
 
 //public functions only!
 u16 PLAYER_init(u16 vramIndex);
