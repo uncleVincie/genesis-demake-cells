@@ -14,6 +14,8 @@ const int BOTTOM_EDGE = 100;
 // player sprite
 Sprite *player;
 Sprite *airJump;
+Sprite *stompExplosionR;
+Sprite *stompExplosionL;
 
 // states
 s8 xOrder = 0;
@@ -29,6 +31,7 @@ u8 dodgeCooldown = 0;
 u8 jumpsLeft = 2;
 u8 airJumpSpriteCooldown = 0;
 u8 stompRecovery = 0;
+u8 stompExplosionTimer = 0;
 
 static void jump(void);
 static void stomp(void);
@@ -48,9 +51,15 @@ gets called upon game reset
 u16 PLAYER_init(u16 vramIndex)
 {
     SPR_init();
-    player = SPR_addSprite(&player_sprite, player_pos_x, player_pos_y, TILE_ATTR(PAL3, 0, FALSE, FALSE));
+    player = SPR_addSprite(&player_sprite, player_pos_x, player_pos_y, TILE_ATTR(PAL3, 1, FALSE, FALSE));
     airJump = SPR_addSprite(&player_airJump, player_pos_x, player_pos_y, TILE_ATTR(PAL1, 0, FALSE, FALSE));
+    stompExplosionR = SPR_addSprite(&player_stomp, player_pos_x, player_pos_y, TILE_ATTR(PAL3, 0, FALSE, FALSE));
+    stompExplosionL = SPR_addSprite(&player_stomp, player_pos_x, player_pos_y, TILE_ATTR(PAL3, 0, FALSE, TRUE));
     SPR_setVisibility(airJump, HIDDEN);
+    SPR_setVisibility(stompExplosionR, HIDDEN);
+    SPR_setVisibility(stompExplosionL, HIDDEN);
+    SPR_setAnimationLoop(stompExplosionR,FALSE);
+    SPR_setAnimationLoop(stompExplosionL,FALSE);
 
     return vramIndex; // static vram allocation not used for player
 }
@@ -65,7 +74,7 @@ void PLAYER_update(void)
     handleStompRecovery();
     positionPlayer();
     airJumpSpriteCooldown > 0 ? airJumpSpriteCooldown-- : SPR_setVisibility(airJump, HIDDEN);
-    debug(player_direction);
+    // debug(player_direction);
 }
 
 void debug(int value)
@@ -174,7 +183,25 @@ void handleDodge()
 
 void handleStompRecovery()
 {
-    if (stompRecovery > 0)
+    if (stompRecovery == STOMP_RECOVERY_FRAMES && !airborne()) {
+        stompExplosionTimer = STOMP_RECOVERY_FRAMES;
+        SPR_setPosition(stompExplosionR, player_pos_x+PLAYER_WIDTH/2, F16_toRoundedInt(player_pos_y)+PLAYER_HEIGHT-56);
+        SPR_setPosition(stompExplosionL, player_pos_x+PLAYER_WIDTH/2-56, F16_toRoundedInt(player_pos_y)+PLAYER_HEIGHT-56);
+        SPR_setAnimAndFrame(stompExplosionL, 0, 0);
+        SPR_setAnimAndFrame(stompExplosionR, 0, 0);
+        SPR_setVisibility(stompExplosionR, VISIBLE);
+        SPR_setVisibility(stompExplosionL, VISIBLE);
+    }
+
+    if (stompExplosionTimer > 0) stompExplosionTimer--;
+
+    if (stompExplosionTimer == 0)
+    {
+        SPR_setVisibility(stompExplosionR, HIDDEN);
+        SPR_setVisibility(stompExplosionL, HIDDEN);
+    } 
+
+    if (stompRecovery > 0 && !airborne())
         stompRecovery--;
 
     //stomp interrupts
