@@ -32,6 +32,7 @@ u8 jumpsLeft = 2;
 u8 airJumpSpriteCooldown = 0;
 u8 stompRecovery = 0;
 u8 stompExplosionTimer = 0;
+s8 healCounter = MAX_HEAL_COUNTER;
 
 static void jump(void);
 static void stomp(void);
@@ -44,6 +45,7 @@ static bool airborne(void);
 static bool stomping(void);
 static void debug(int value);
 static void pollDpad(void);
+static void fixinToHeal(void);
 
 /*
 gets called upon game reset
@@ -74,7 +76,7 @@ void PLAYER_update(void)
     handleStompRecovery();
     positionPlayer();
     airJumpSpriteCooldown > 0 ? airJumpSpriteCooldown-- : SPR_setVisibility(airJump, HIDDEN);
-    // debug(player_direction);
+    debug(healCounter);
 }
 
 void debug(int value)
@@ -102,12 +104,39 @@ void pollDpad()
         xOrder = +1;
     else
         xOrder = 0;
+
+    if (value & BUTTON_Z)
+    {
+        //lock out d-pad inputs
+        xOrder = 0;
+        yOrder = 0;
+        if (!airborne()) fixinToHeal();
+    }
+    else
+    {
+        if (healCounter > 0) healCounter = MAX_HEAL_COUNTER;
+    }
+
 }
 
 void positionPlayer()
 {
-    // calculate velocity
-    if (xOrder == 0 && dodgeFrames == 0 && player_vel_y == 0 && stompRecovery == 0)
+    if (0 < healCounter && healCounter < MAX_HEAL_COUNTER)
+    {
+        //let healing function handle this, but don't allow any other animation
+    }
+    else if (healCounter <= 0 && healCounter > MIN_HEAL_COUNTER)
+    {
+        SPR_setAutoAnimation(player, FALSE);
+        SPR_setAnimAndFrame(player, HEALING_ANIM, 1);
+        healCounter--;
+    }
+    else if (healCounter == MIN_HEAL_COUNTER)
+    {
+        SPR_setAutoAnimation(player, TRUE);
+        healCounter = MAX_HEAL_COUNTER;
+    }
+    else if (xOrder == 0 && dodgeFrames == 0 && player_vel_y == 0 && stompRecovery == 0)
         stand();
     else if (airborne() && ((xOrder == RIGHT && player_direction == LEFT) || (xOrder == LEFT && player_direction == RIGHT)) && !stomping()) // changing direction while falling
     {
@@ -218,7 +247,7 @@ void PLAYER_doJoyAction(u16 changed, u16 pressed)
     // NOTE: need to use bitwise operators here, since enums are hex
 
     // handle uninterruptible motions
-    if (FALSE)
+    if (healCounter < MAX_HEAL_COUNTER)
     {
         return;
     }
@@ -291,6 +320,18 @@ void stomp()
     player_vel_y = STOMP_VELOCITY;
     stompRecovery = STOMP_RECOVERY_FRAMES;
     player_vel_x = 0;
+}
+
+void fixinToHeal()
+{
+    if (healCounter > 0)
+    {
+        SPR_setAutoAnimation(player, FALSE);
+        SPR_setAnimAndFrame(player, HEALING_ANIM, 0);
+        player_vel_x = 0;
+        healCounter--;
+    }
+
 }
 
 bool airborne()
