@@ -11,6 +11,7 @@
 #define DODGING_ANIM    2
 #define JUMPING_ANIM    3
 #define STOMPING_ANIM   4
+#define HEALING_ANIM    5
 
 #define WALKING_SPEED   2 // pixels/frame
 #define FALLING_X_SPEED 1
@@ -19,6 +20,8 @@
 #define DEFAULT_DODGE_COOLDOWN  54
 #define MAX_DODGE_FRAMES    30
 #define STOMP_RECOVERY_FRAMES   24
+#define MAX_HEAL_COUNTER 44
+#define MIN_HEAL_COUNTER -36
 
 #define PLAYER_WIDTH    24
 #define PLAYER_HEIGHT   32
