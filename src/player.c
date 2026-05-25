@@ -16,6 +16,7 @@ Sprite *player;
 Sprite *airJump;
 Sprite *stompExplosionR;
 Sprite *stompExplosionL;
+Sprite *knifeSlash;
 
 // states
 s8 xOrder = 0;
@@ -33,6 +34,8 @@ u8 airJumpSpriteCooldown = 0;
 u8 stompRecovery = 0;
 u8 stompExplosionTimer = 0;
 s8 healCounter = MAX_HEAL_COUNTER;
+// u8 meleeCombo = 0;
+s8 attackCooldown = MELEE_COMBO_RESET;
 
 static void jump(void);
 static void stomp(void);
@@ -46,6 +49,9 @@ static bool stomping(void);
 static void debug(int value);
 static void pollDpad(void);
 static void fixinToHeal(void);
+static void roll(void);
+static void initiateMelee(void);
+static void handleMelee(void);
 
 /*
 gets called upon game reset
@@ -57,11 +63,14 @@ u16 PLAYER_init(u16 vramIndex)
     airJump = SPR_addSprite(&player_airJump, player_pos_x, player_pos_y, TILE_ATTR(PAL1, 0, FALSE, FALSE));
     stompExplosionR = SPR_addSprite(&player_stomp, player_pos_x, player_pos_y, TILE_ATTR(PAL3, 0, FALSE, FALSE));
     stompExplosionL = SPR_addSprite(&player_stomp, player_pos_x, player_pos_y, TILE_ATTR(PAL3, 0, FALSE, TRUE));
+    knifeSlash = SPR_addSprite(&knife_slash, player_pos_x, player_pos_y, TILE_ATTR(PAL1, 0, FALSE, FALSE));
     SPR_setVisibility(airJump, HIDDEN);
     SPR_setVisibility(stompExplosionR, HIDDEN);
     SPR_setVisibility(stompExplosionL, HIDDEN);
-    SPR_setAnimationLoop(stompExplosionR,FALSE);
-    SPR_setAnimationLoop(stompExplosionL,FALSE);
+    SPR_setVisibility(knifeSlash, HIDDEN);
+    SPR_setAnimationLoop(stompExplosionR, FALSE);
+    SPR_setAnimationLoop(stompExplosionL, FALSE);
+    SPR_setAnimationLoop(knifeSlash, FALSE);
 
     return vramIndex; // static vram allocation not used for player
 }
@@ -74,9 +83,10 @@ void PLAYER_update(void)
     pollDpad();
     handleDodge();
     handleStompRecovery();
+    handleMelee();
     positionPlayer();
     airJumpSpriteCooldown > 0 ? airJumpSpriteCooldown-- : SPR_setVisibility(airJump, HIDDEN);
-    debug(healCounter);
+    debug(attackCooldown);
 }
 
 void debug(int value)
@@ -89,6 +99,14 @@ void debug(int value)
 
 void pollDpad()
 {
+
+    if (attackCooldown > 0) 
+    {
+        xOrder = 0;
+        yOrder = 0;
+        return; //do not interrupt attack
+    }
+
     u16 value = JOY_readJoypad(JOY_1);
 
     if (value & BUTTON_UP)
@@ -107,23 +125,25 @@ void pollDpad()
 
     if (value & BUTTON_Z)
     {
-        //lock out d-pad inputs
+        // lock out d-pad inputs
         xOrder = 0;
         yOrder = 0;
-        if (!airborne()) fixinToHeal();
+        attackCooldown = -1; //reset the current attack
+        if (!airborne())
+            fixinToHeal();
     }
     else
     {
-        if (healCounter > 0) healCounter = MAX_HEAL_COUNTER;
+        if (healCounter > 0)
+            healCounter = MAX_HEAL_COUNTER;
     }
-
 }
 
 void positionPlayer()
 {
     if (0 < healCounter && healCounter < MAX_HEAL_COUNTER)
     {
-        //let healing function handle this, but don't allow any other animation
+        // let healing function handle this, but don't allow any other animation
     }
     else if (healCounter <= 0 && healCounter > MIN_HEAL_COUNTER)
     {
@@ -133,10 +153,9 @@ void positionPlayer()
     }
     else if (healCounter == MIN_HEAL_COUNTER)
     {
-        SPR_setAutoAnimation(player, TRUE);
         healCounter = MAX_HEAL_COUNTER;
     }
-    else if (xOrder == 0 && dodgeFrames == 0 && player_vel_y == 0 && stompRecovery == 0)
+    else if (xOrder == 0 && dodgeFrames == 0 && player_vel_y == 0 && stompRecovery == 0 && attackCooldown == MELEE_COMBO_RESET)
         stand();
     else if (airborne() && ((xOrder == RIGHT && player_direction == LEFT) || (xOrder == LEFT && player_direction == RIGHT)) && !stomping()) // changing direction while falling
     {
@@ -157,21 +176,19 @@ void positionPlayer()
     // apply gravity
     if (airborne())
     {
-        if (player_vel_y < TERMINAL_VELOCITY) player_vel_y += GRAVITY;
-    } else
+        if (player_vel_y < TERMINAL_VELOCITY)
+            player_vel_y += GRAVITY;
+    }
+    else
     {
         player_vel_y = 0;
     }
 
     // handle falling
-    if (dodgeFrames == 0 && player_vel_y > FIX16(0))
+    if (dodgeFrames == 0 && player_vel_y > FIX16(0) && attackCooldown < 0)
     {
         SPR_setAutoAnimation(player, FALSE);
         SPR_setAnimAndFrame(player, JUMPING_ANIM, 2); // last animation of the jump
-    }
-    else
-    {
-        SPR_setAutoAnimation(player, TRUE);
     }
 
     // handle stomp recovery
@@ -179,10 +196,6 @@ void positionPlayer()
     {
         SPR_setAutoAnimation(player, FALSE);
         SPR_setAnimAndFrame(player, STOMPING_ANIM, 0);
-    }
-    else
-    {
-        SPR_setAutoAnimation(player, TRUE);
     }
 
     // Keep the player within the bounds of the screen
@@ -210,30 +223,65 @@ void handleDodge()
         dodgeFrames = 0;
 }
 
+void handleMelee()
+{
+    if (attackCooldown > MELEE_COMBO_RESET) attackCooldown--;
+
+    if (attackCooldown == 8)
+    {
+        //display knife slash
+        int knifeSlash_pos_y = F16_toRoundedInt(player_pos_y);
+        int knifeSlash_pos_x;
+        if (player_direction == RIGHT)
+        {
+            SPR_setHFlip(knifeSlash, FALSE);
+            knifeSlash_pos_x = player_pos_x + 16;
+        }
+        else
+        {
+            SPR_setHFlip(knifeSlash, TRUE);
+            knifeSlash_pos_x = player_pos_x - 24;
+        }
+        SPR_setAnimAndFrame(knifeSlash, 0, 0);
+        SPR_setPosition(knifeSlash, knifeSlash_pos_x, knifeSlash_pos_y);
+        SPR_setVisibility(knifeSlash, VISIBLE);
+
+        //change player anim
+        SPR_setAnimAndFrame(player, MELEE_ANIM, 1);
+    }
+
+    if (attackCooldown <= 0)
+    {
+        SPR_setVisibility(knifeSlash, HIDDEN);
+    }
+}
+
 void handleStompRecovery()
 {
-    if (stompRecovery == STOMP_RECOVERY_FRAMES && !airborne()) {
+    if (stompRecovery == STOMP_RECOVERY_FRAMES && !airborne())
+    {
         stompExplosionTimer = STOMP_RECOVERY_FRAMES;
-        SPR_setPosition(stompExplosionR, player_pos_x+PLAYER_WIDTH/2, F16_toRoundedInt(player_pos_y)+PLAYER_HEIGHT-56);
-        SPR_setPosition(stompExplosionL, player_pos_x+PLAYER_WIDTH/2-56, F16_toRoundedInt(player_pos_y)+PLAYER_HEIGHT-56);
+        SPR_setPosition(stompExplosionR, player_pos_x + PLAYER_WIDTH / 2, F16_toRoundedInt(player_pos_y) + PLAYER_HEIGHT - 56);
+        SPR_setPosition(stompExplosionL, player_pos_x + PLAYER_WIDTH / 2 - 56, F16_toRoundedInt(player_pos_y) + PLAYER_HEIGHT - 56);
         SPR_setAnimAndFrame(stompExplosionL, 0, 0);
         SPR_setAnimAndFrame(stompExplosionR, 0, 0);
         SPR_setVisibility(stompExplosionR, VISIBLE);
         SPR_setVisibility(stompExplosionL, VISIBLE);
     }
 
-    if (stompExplosionTimer > 0) stompExplosionTimer--;
+    if (stompExplosionTimer > 0)
+        stompExplosionTimer--;
 
     if (stompExplosionTimer == 0)
     {
         SPR_setVisibility(stompExplosionR, HIDDEN);
         SPR_setVisibility(stompExplosionL, HIDDEN);
-    } 
+    }
 
     if (stompRecovery > 0 && !airborne())
         stompRecovery--;
 
-    //stomp interrupts
+    // stomp interrupts
     if (abs(xOrder) > 0 && !airborne())
         stompRecovery = 0;
 }
@@ -254,25 +302,26 @@ void PLAYER_doJoyAction(u16 changed, u16 pressed)
 
     if (changed & pressed & BUTTON_C)
     {
-        if (dodgeCooldown > 0)
-            return;                                      // cannot roll until cooldown timer expires
-        player_vel_x = player_direction * WALKING_SPEED; // roll at roll speed, even if starting from rest
-        SPR_setAnim(player, DODGING_ANIM);
-        dodgeFrames = MAX_DODGE_FRAMES;
-        dodgeCooldown = DEFAULT_DODGE_COOLDOWN;
-        stompRecovery = 0;
+        attackCooldown = -1; // reset the current attack
+        roll();
     }
     else if (changed & pressed & BUTTON_B)
     {
-        if (yOrder == 1 && airborne()) //if pressing down in the air
+        if (yOrder == 1 && airborne()) // if pressing down in the air
         {
             stomp();
-        } else
+        }
+        else
         {
             jump();
-            stompRecovery = 0; //stomp recovery cancel
+            stompRecovery = 0; // stomp recovery cancel
         }
         dodgeFrames = 0; // dodge cancel
+        attackCooldown = -1;
+    }
+    else if (changed & pressed & BUTTON_A)
+    {
+        initiateMelee();
     }
 }
 
@@ -281,8 +330,9 @@ void run(s8 direction)
     player_direction = direction;
     player_vel_x = player_direction * WALKING_SPEED; // pixel/frame
     SPR_setAnim(player, WALKING_ANIM);
+    SPR_setAutoAnimation(player, TRUE);
     player_direction < 0 ? SPR_setHFlip(player, TRUE) : SPR_setHFlip(player, FALSE);
-    stompRecovery = 0; //stomp recovery cancel
+    stompRecovery = 0; // stomp recovery cancel
 }
 
 void stand()
@@ -291,12 +341,25 @@ void stand()
     SPR_setAnim(player, STANDING_ANIM);
 }
 
+void roll()
+{
+    if (dodgeCooldown > 0)
+        return;                                      // cannot roll until cooldown timer expires
+    player_vel_x = player_direction * WALKING_SPEED; // roll at roll speed, even if starting from rest
+    SPR_setAnim(player, DODGING_ANIM);
+    SPR_setAutoAnimation(player, TRUE);
+    dodgeFrames = MAX_DODGE_FRAMES;
+    dodgeCooldown = DEFAULT_DODGE_COOLDOWN;
+    stompRecovery = 0;
+}
+
 void jump()
 {
     if (!airborne()) // ground jump
     {
         jumpsLeft = 2;
         SPR_setAnim(player, JUMPING_ANIM);
+        SPR_setAutoAnimation(player, TRUE);
         jumpsLeft--;
         player_vel_y = -JUMP_SPEED;
     }
@@ -305,6 +368,7 @@ void jump()
         SPR_setAnimAndFrame(player, JUMPING_ANIM, 0);
         SPR_setPosition(airJump, player_pos_x - 8, F16_toRoundedInt(player_pos_y) + PLAYER_HEIGHT - 4);
         SPR_setVisibility(airJump, VISIBLE);
+        SPR_setAutoAnimation(player, TRUE);
         airJumpSpriteCooldown = 7;
         jumpsLeft--;
         player_vel_y = -JUMP_SPEED;
@@ -331,7 +395,17 @@ void fixinToHeal()
         player_vel_x = 0;
         healCounter--;
     }
+}
 
+void initiateMelee()
+{
+        if (attackCooldown == MELEE_COMBO_RESET)
+        {
+            SPR_setAutoAnimation(player, FALSE);
+            SPR_setAnimAndFrame(player, MELEE_ANIM, 0);
+            player_vel_x = 0;
+            attackCooldown = 16;
+        }
 }
 
 bool airborne()

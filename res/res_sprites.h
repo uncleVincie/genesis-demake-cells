@@ -6,5 +6,6 @@
 extern const SpriteDefinition player_sprite;
 extern const SpriteDefinition player_airJump;
 extern const SpriteDefinition player_stomp;
+extern const SpriteDefinition knife_slash;
 
 #endif // _RES_RES_SPRITES_H_

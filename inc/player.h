@@ -12,6 +12,7 @@
 #define JUMPING_ANIM    3
 #define STOMPING_ANIM   4
 #define HEALING_ANIM    5
+#define MELEE_ANIM      6
 
 #define WALKING_SPEED   2 // pixels/frame
 #define FALLING_X_SPEED 1
@@ -22,6 +23,7 @@
 #define STOMP_RECOVERY_FRAMES   24
 #define MAX_HEAL_COUNTER 44
 #define MIN_HEAL_COUNTER -36
+#define MELEE_COMBO_RESET -12
 
 #define PLAYER_WIDTH    24
 #define PLAYER_HEIGHT   32
